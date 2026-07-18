@@ -1,5 +1,7 @@
 # Hokus Pokers
 
+> 💬 **Feedback Wanted!** – Found a bug or have a suggestion? [Open an issue](https://github.com/zihanlei/hokus-pokers/issues/new) or start a [Discussion](https://github.com/zihanlei/hokus-pokers/discussions) or email me directly at: ```zihanlei0512@gmail.com```. See the full [Feedback & Bug Reports](#feedback--bug-reports) section below.
+
 **Hokus Pokers** is a real‑time, multiplayer Texas Hold’em poker web application. Host private or public games with up to 12 players, manage blind levels, enable rebuys, and watch the action unfold with live chat, emoji reactions, and a built‑in timer. The game is server‑authoritative: all logic runs on the Node.js backend, so cheating is impossible.
 
 ---
