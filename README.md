@@ -168,7 +168,7 @@ All notable changes are documented in the **CHANGELOG.md** file located in the p
 ## Feedback & Bug Reports
 
 I welcome your feedback!  
-- **Bug reports** and **feature requests** can be opened as [GitHub Issues](https://github.com/zihanlei/hokus-pokers/issues) or start a discussion in [GitHub Discussions] (https://github.com/zihanlei/hokus-pokers/discussions)  
+- **Bug reports** and **feature requests** can be opened as [GitHub Issues](https://github.com/zihanlei/hokus-pokers/issues) or start a discussion in [GitHub Discussions](https://github.com/zihanlei/hokus-pokers/discussions)  
 - For any other questions, you can contact me directly via email: `zihanlei0512@gmail.com`
 
 When reporting a bug, please include:
