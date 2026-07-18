@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hokus Pokers</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <div id="screen-home" class="screen active">
+      <div class="home-container">
+        <h1 class="logo">Hokus <span>Pokers</span></h1>
+        <p class="tagline">Real-time Texas Hold'em with friends</p>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" onclick="showScreen('screen-host')">Host Game</button>
+          <button class="btn btn-secondary" onclick="showScreen('screen-join')">Join Game</button>
+          <button class="btn btn-tertiary" onclick="showScreen('screen-rules')">How to Play</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-rules" class="screen">
+      <div class="rules-container">
+        <button class="btn btn-back" onclick="showScreen('screen-home')">&larr; Back</button>
+        <h2>How to Play Texas Hold'em</h2>
+        <div class="rules-content">
+          <p class="rules-intro"><strong>Goal:</strong> Make the best 5-card hand using your 2 hole cards and 5 community cards. Win chips by having the best hand — or by making everyone else fold.</p>
+          <h3>Hand Rankings (High to Low)</h3>
+          <ol>
+            <li><strong>Royal Flush</strong> &mdash; A, K, Q, J, 10 of same suit</li>
+            <li><strong>Straight Flush</strong> &mdash; 5 in a row of same suit</li>
+            <li><strong>Four of a Kind</strong> &mdash; 4 cards of same rank</li>
+            <li><strong>Full House</strong> &mdash; 3 of a kind + pair</li>
+            <li><strong>Flush</strong> &mdash; 5 of same suit</li>
+            <li><strong>Straight</strong> &mdash; 5 in a row</li>
+            <li><strong>Three of a Kind</strong> &mdash; 3 cards of same rank</li>
+            <li><strong>Two Pair</strong> &mdash; 2 different pairs</li>
+            <li><strong>One Pair</strong> &mdash; 2 cards of same rank</li>
+            <li><strong>High Card</strong> &mdash; Highest single card</li>
+          </ol>
+          <h3>Betting Rounds</h3>
+          <p>There are 4 rounds of betting per hand:</p>
+          <ul>
+            <li><strong>Pre-flop</strong> &mdash; after hole cards are dealt</li>
+            <li><strong>Flop</strong> &mdash; after 3 community cards</li>
+            <li><strong>Turn</strong> &mdash; after 4th community card</li>
+            <li><strong>River</strong> &mdash; after 5th community card</li>
+          </ul>
+          <h3>Actions</h3>
+          <ul>
+            <li><strong>Fold</strong> &mdash; give up your hand</li>
+            <li><strong>Check</strong> &mdash; pass (only if no bet to call)</li>
+            <li><strong>Call</strong> &mdash; match the current bet</li>
+            <li><strong>Raise</strong> &mdash; bet more than the current bet</li>
+            <li><strong>All In</strong> &mdash; bet all your chips</li>
+          </ul>
+          <h3>Blinds</h3>
+          <p>Each hand starts with two forced bets &mdash; the <strong>small blind</strong> and <strong>big blind</strong> &mdash; posted by the two players left of the dealer. This ensures there's always something to play for.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="screen-host" class="screen">
+      <div class="form-container">
+        <button class="btn btn-back" onclick="showScreen('screen-home')">&larr; Back</button>
+        <h2>Host a Game</h2>
+        <div class="form-group">
+          <label>Your Nickname</label>
+          <input type="text" id="host-nickname" placeholder="Enter your name" maxlength="12">
+        </div>
+        <div class="form-group">
+          <label>Room Name</label>
+          <input type="text" id="host-roomname" placeholder="Defaults to your name" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label>Password (Optional)</label>
+          <input type="text" id="host-password" placeholder="Leave blank for public">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Small Blind</label>
+            <input type="number" id="host-sb" value="10" min="1">
+          </div>
+          <div class="form-group">
+            <label>Big Blind</label>
+            <input type="number" id="host-bb" value="20" min="1">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+              <label>Max Players <small>(2-12)</small></label>
+            <input type="number" id="host-max" value="8" min="2" max="12">
+          </div>
+          <div class="form-group">
+            <label>Starting Chips</label>
+            <input type="number" id="host-chips" value="1000" min="100">
+          </div>
+        </div>
+        <div class="form-group checkbox-group">
+          <label><input type="checkbox" id="host-rebuys" checked> Allow Rebuys</label>
+          <small>Players with 0 chips can buy back in</small>
+        </div>
+        <div class="form-group checkbox-group">
+          <label><input type="checkbox" id="host-timer" checked> Enable Turn Timer</label>
+          <small>Auto-fold players who take too long</small>
+        </div>
+        <div class="form-group">
+          <label>Timer Duration (seconds)</label>
+          <input type="number" id="host-timer-duration" value="20" min="5" max="120">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="createRoom()">Create Game</button>
+      </div>
+    </div>
+
+    <div id="screen-join" class="screen">
+      <div class="form-container">
+        <button class="btn btn-back" onclick="showScreen('screen-home')">&larr; Back</button>
+        <h2>Join a Game</h2>
+        <button class="btn btn-primary btn-full" onclick="openJoinModal()">Join by Code</button>
+        <div class="divider">OR</div>
+        <h3>Open Rooms</h3>
+        <button class="btn btn-secondary btn-full" onclick="socket.emit('list-public-rooms')">Refresh List</button>
+        <div id="public-rooms-list" class="rooms-list"></div>
+      </div>
+    </div>
+
+    <div id="screen-game" class="screen">
+      <div id="sidebar">
+        <div class="sidebar-section">
+          <h3>Players</h3>
+          <div id="sidebar-players"></div>
+        </div>
+        <div class="sidebar-section">
+          <h3>Spectators</h3>
+          <div id="sidebar-spectators"></div>
+        </div>
+        <div id="spectator-join-area" style="display:none;">
+          <button class="btn btn-secondary btn-full btn-small-text" id="btn-request-join" onclick="requestJoin()">Request to Join</button>
+          <button class="btn btn-tiny btn-full" id="btn-cancel-join" onclick="cancelJoin()" style="display:none; margin-top:6px;">Cancel Request</button>
+        </div>
+        <div id="rebuy-area" style="display:none;">
+          <button class="btn btn-allin btn-full" onclick="openRebuyModal()">Request Rebuy</button>
+        </div>
+        <div id="rebuy-pending-area" style="display:none;">
+          <p style="font-size:0.78rem; color:var(--gold); text-align:center; padding:6px;">Rebuy pending host approval...</p>
+          <button class="btn btn-tiny btn-full" onclick="cancelRebuyRequest()">Cancel Request</button>
+        </div>
+      </div>
+
+      <div id="table-container">
+        <div id="top-bar">
+          <div class="room-info">
+            <span id="room-code-display"></span>
+            <button class="btn btn-tiny" onclick="copyCode()" title="Copy room code">Copy</button>
+            <span id="host-display"></span>
+          </div>
+          <div class="top-actions">
+            <button class="btn btn-tiny" onclick="toggleSound()" id="sound-btn" title="Toggle sound effects on/off">🔊</button>
+            <div class="btn-notification-wrapper">
+              <button class="btn btn-tiny" id="host-settings-btn" onclick="openSettings()" style="display:none;" title="Host settings">⚙️</button>
+              <span class="notification-badge" id="settings-badge">0</span>
+            </div>
+            <button class="btn btn-tiny" onclick="toggleChat()" id="chat-btn" title="Toggle chat panel">💬</button>
+            <button class="btn btn-tiny btn-danger" onclick="leaveRoom()" title="Leave the room">Leave</button>
+          </div>
+        </div>
+
+        <div id="poker-table">
+          <div id="win-banner" class="win-banner"></div>
+          <div id="start-overlay" class="start-overlay">
+            <button class="btn btn-start" id="btn-start-game" onclick="startGame()">START GAME</button>
+            <p id="waiting-text" class="waiting-text">Waiting for host to start...</p>
+          </div>
+          <div id="next-hand-overlay" class="next-hand-overlay hidden">
+            <div class="next-hand-box">
+              <p class="next-hand-text" id="next-hand-status">Hand complete!</p>
+              <button class="btn btn-start" id="btn-next-hand" onclick="startNextHand()" style="display:none;">Start Next Hand</button>
+              <p class="waiting-text" id="next-hand-countdown">Waiting for host to start next hand...</p>
+            </div>
+          </div>
+          <div id="community-cards"></div>
+          <div id="pot-display"></div>
+          <div id="seats-container"></div>
+        </div>
+
+        <div id="action-bar">
+          <div id="turn-indicator" class="turn-indicator hidden">YOUR TURN &mdash; choose an action below</div>
+          <div id="action-status" class="action-status">Waiting for game to start...</div>
+          <div id="timer-bar-container">
+            <div id="timer-bar"></div>
+            <span id="timer-text">20</span>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-danger" id="btn-fold" onclick="sendAction('fold')" title="Give up your hand">Fold</button>
+            <button class="btn btn-secondary" id="btn-check" onclick="sendAction('check')" title="Pass action (only if no bet to call)">Check</button>
+            <button class="btn btn-secondary" id="btn-call" onclick="sendAction('call')" title="Match the current bet">Call</button>
+            <div class="raise-control">
+              <input type="number" id="raise-amount" min="0" placeholder="Amt" title="Enter raise amount">
+              <button class="btn btn-primary" id="btn-raise" onclick="sendRaise()" title="Bet more than the current bet">Raise</button>
+            </div>
+            <button class="btn btn-allin" id="btn-allin" onclick="sendAllIn()" title="Bet all your chips">All In</button>
+          </div>
+        </div>
+
+        <div id="chat-container">
+          <div class="chat-header">
+            <h3>Game Chat</h3>
+            <button class="btn btn-tiny" onclick="toggleChat()">Close</button>
+          </div>
+          <div id="chat-messages"></div>
+          <div class="chat-input-row" id="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendChat()">
+            <button class="btn btn-tiny" onclick="sendChat()">Send</button>
+            <button class="btn btn-tiny" onclick="toggleEmojiPicker()">Emoji</button>
+          </div>
+          <div id="chat-spectator-notice" class="chat-spectator-notice" style="display:none;">
+            Spectators can view the game but cannot chat or react.
+          </div>
+          <div id="emoji-picker" class="emoji-picker" style="display:none;">
+            <span onclick="sendEmoji('😂')">😂</span>
+            <span onclick="sendEmoji('🔥')">🔥</span>
+            <span onclick="sendEmoji('👏')">👏</span>
+            <span onclick="sendEmoji('😮')">😮</span>
+            <span onclick="sendEmoji('💀')">💀</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="settings-modal" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Host Settings</h2>
+            <button class="btn btn-tiny" onclick="closeSettings()">Close</button>
+          </div>
+          <div class="settings-group">
+            <h3>Kick Player</h3>
+            <p class="setting-desc">Remove a player or spectator from the room. Players become spectators; spectators are removed entirely.</p>
+            <select id="kick-select"></select>
+            <button class="btn btn-danger" onclick="kickPlayer()">Kick</button>
+          </div>
+          <div class="settings-group">
+            <h3>Edit Chips</h3>
+            <p class="setting-desc">Set a player's chip count. Only works between hands.</p>
+            <select id="editchips-select"></select>
+            <input type="number" id="editchips-amount" placeholder="New chip amount">
+            <button class="btn btn-primary settings-action-btn" onclick="editChips()">Set Chips</button>
+          </div>
+          <div class="settings-group">
+            <h3>Change Password</h3>
+            <p class="setting-desc">Set a new password, or leave blank to make the room public.</p>
+            <input type="text" id="new-password" placeholder="New password (blank = public)">
+            <button class="btn btn-primary settings-action-btn" onclick="changePassword()">Update Password</button>
+          </div>
+          <div class="settings-group">
+            <h3>Timer</h3>
+            <p class="setting-desc">Control the turn timer. When OFF, players can take as long as they want. Duration can be changed mid-game.</p>
+            <p class="setting-status">Current status: <span id="timer-status">Enabled</span></p>
+            <button class="btn btn-secondary" onclick="toggleTimer()">Toggle Timer</button>
+            <div style="margin-top:8px;">
+              <label>Duration (seconds):</label>
+              <input type="number" id="settings-timer-duration" min="5" max="120" style="margin-top:4px;">
+              <button class="btn btn-primary settings-action-btn" onclick="changeTimerDuration()">Set Duration</button>
+            </div>
+          </div>
+          <div class="settings-group">
+            <h3>Rebuys</h3>
+            <p class="setting-desc">When ON, players who lose all chips can buy back in for the starting stack. When OFF, they're eliminated.</p>
+            <p class="setting-status">Current status: <span id="rebuys-status">Allowed</span></p>
+            <button class="btn btn-secondary" onclick="toggleRebuys()">Toggle Rebuys</button>
+          </div>
+          <div class="settings-group">
+            <h3>Pending Rebuy Requests</h3>
+            <p class="setting-desc">Players requesting a rebuy. You can approve (with a modified amount) or decline.</p>
+            <div id="rebuy-requests-list" class="host-notifications">
+              <p class="no-notifications">No pending requests.</p>
+            </div>
+          </div>
+          <div class="settings-group">
+            <h3>Pending Join Requests</h3>
+            <p class="setting-desc">Spectators requesting to join the game. Accept or decline.</p>
+            <div id="join-requests-list" class="host-notifications">
+              <p class="no-notifications">No pending requests.</p>
+            </div>
+          </div>
+          <div class="settings-group">
+            <h3>End Game</h3>
+            <p class="setting-desc">Destroy the room and kick everyone back to the home screen. This cannot be undone.</p>
+            <button class="btn btn-danger btn-full" onclick="endGame()">End Game for Everyone</button>
+          </div>
+          <div class="settings-group">
+            <h3>Max Players</h3>
+            <p class="setting-desc">Adjust room capacity (2-12). Existing players are not removed.</p>
+            <input type="number" id="settings-max-players" min="2" max="12">
+            <button class="btn btn-primary settings-action-btn" onclick="changeMaxPlayers()">Set Max Players</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="join-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Join Room</h2>
+          <button class="btn btn-tiny" onclick="closeJoinModal()">Close</button>
+        </div>
+        <div class="form-group">
+          <label>Room Code</label>
+          <input type="text" id="join-modal-code" placeholder="6-character code" maxlength="6" oninput="this.value = this.value.toUpperCase()">
+        </div>
+        <div class="form-group">
+          <label>Your Nickname</label>
+          <input type="text" id="join-modal-nickname" placeholder="Enter your name" maxlength="12">
+        </div>
+        <div class="form-group">
+          <label>Password <small>(only needed for private rooms)</small></label>
+          <input type="password" id="join-modal-password" placeholder="Leave blank for public rooms">
+        </div>
+        <button class="btn btn-primary btn-full" onclick="joinRoomFromModal()">Join Game</button>
+        <button class="btn btn-tertiary btn-full" onclick="spectateFromModal()" style="margin-top:8px;">Spectate Instead</button>
+      </div>
+    </div>
+
+    <div id="rebuy-modal" class="modal">
+      <div class="modal-content rebuy-modal-content">
+        <div class="modal-header">
+          <h2>Request Rebuy</h2>
+          <button class="btn btn-tiny" onclick="closeRebuyModal()">Close</button>
+        </div>
+        <p id="rebuy-modal-desc" style="font-size:0.85rem; color:var(--text-dim); margin-bottom:12px;">Enter the amount you want to rebuy for. The host will need to approve this request.</p>
+        <div class="form-group">
+          <label>Rebuy Amount</label>
+          <input type="number" id="rebuy-modal-amount" class="rebuy-amount-input" placeholder="1000" min="1">
+        </div>
+        <button class="btn btn-primary btn-full" id="rebuy-modal-submit" onclick="sendRebuyRequest()">Send Request</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "hokus-pokers",
+  "version": "1.0.0",
+  "description": "Hokus Pokers — Real-time Texas Hold'em Poker Web Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node server.js --test"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}
