@@ -19,16 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A short all‑in (less than the minimum raise) incorrectly reset hasActed = false for everyone, reopening betting. Per poker rules, only a full‑size raise reopens betting; the hasActed reset is now gated behind raiseAmount >= minRaise.
 - lastRaise was being stored as the total bet amount instead of the raise diff; now stores the diff for future use.
 - Initial dealer selection could land on an empty seat after disconnects; startGame now validates the persisted dealerIndex and falls back to the lowest active seat.
+
 **Action handling & UX:**
 - processAction silently no‑op'd on invalid actions (wrong turn, can't check, sub‑minimum raise, insufficient chips), clearing the turn timer without restarting it and leaving the player stuck with no error message. All invalid‑action paths now emit 'error-msg' to the offending player and restart the turn timer.
 - The check branch rejected invalid checks without telling the player why; now explains "You cannot check — there is a bet to call."
 - A dedicated 'allin' server action normalises the All‑In button so short‑stack players no longer hit the silent‑failure path. The client's sendAllIn() now emits action: 'allin' instead of action: 'raise' with an amount.
 - change-max-players could be reduced below the current player count, hiding players in the UI; the server now rejects with an explanatory error.
 - Timer tick sound had an off‑by‑one (Math.floor(t) !== Math.floor(t + 0.1)); replaced with a _lastTick closure that fires exactly once per whole second.
+
 **Security:**
 - Server‑side nickname length validation (12 char max) added to create-room, join-room, and spectate-room, with String() coercion to reject non‑string payloads.
 - Chat messages are now validated (must be a string, trimmed, capped at 500 chars) to prevent spam/crash payloads.
 - Emoji reactions are whitelisted server‑side (['😂','🔥','👏','😮','💀']) to prevent arbitrary content injection via the emoji-received broadcast.
+
 **Changed:**
 - ROOM_TIMEOUT (5 min) was defined but never used. Spectator‑only rooms now auto‑destroy after 5 minutes of idleness, and the destruction timer is cancelled when a new player or spectator joins (join-room, spectate-room, processJoinQueue).
 - Bot test harness updated to fall back to check/call when a raise would exceed the bot's stack, preventing tight retry loops on invalid raises.
