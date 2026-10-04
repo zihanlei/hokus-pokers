@@ -77,7 +77,6 @@ class Room {
       let revealCards = false;
       if (this.gameState.bettingRound === 'showdown' && !p.folded) revealCards = true;
       if (p.id === requestingSocketId) revealCards = true;
-      if (isSpectator && !p.folded && this.gameState.status === 'playing') revealCards = true;
       return {
         id: p.id,
         name: p.name,
@@ -225,7 +224,8 @@ function calculatePots(players) {
   if (active.length === 0) {
     return [{ amount: allContributors.reduce((s,p)=>s+p.totalBet, 0), eligible: [] }];
   }
-  let levels = [...new Set(active.map(p => p.totalBet))].sort((a,b) => a-b);
+
+  let levels = [...new Set(allContributors.map(p => p.totalBet))].sort((a,b) => a-b);
   let prevLevel = 0;
   for (let level of levels) {
     let diff = level - prevLevel;
@@ -239,6 +239,10 @@ function calculatePots(players) {
 }
 
 function processJoinQueue(room) {
+  if (room.destructionTimeout) {
+    clearTimeout(room.destructionTimeout);
+    room.destructionTimeout = null;
+  }
   if (room.joinQueue.length === 0) return;
   const usedSeats = new Set(Array.from(room.players.values()).map(p => p.seatIndex));
   const availableSeats = [];
@@ -261,8 +265,13 @@ function processJoinQueue(room) {
 function startGame(room) {
   if (room.players.size < 2) return;
   room.gameState.status = 'playing';
-  if (room.gameState.dealerIndex === -1) {
-    room.gameState.dealerIndex = Math.min(...Array.from(room.players.values()).map(p => p.seatIndex));
+  if (room.gameState.dealerIndex === -1 ||
+      !Array.from(room.players.values()).some(p => p.seatIndex === room.gameState.dealerIndex && p.chips > 0 && !p.isSittingOut)) {
+    const candidates = Array.from(room.players.values())
+      .filter(p => p.chips > 0 && !p.isSittingOut)
+      .map(p => p.seatIndex)
+      .sort((a,b) => a-b);
+    room.gameState.dealerIndex = candidates.length > 0 ? candidates[0] : -1;
   }
   startHand(room);
 }
@@ -372,14 +381,25 @@ function processAction(playerId, action, amount) {
   const room = Array.from(rooms.values()).find(r => r.players.has(playerId));
   if (!room) return;
   const player = room.players.get(playerId);
-  if (player.seatIndex !== room.gameState.currentPlayerIndex) return;
-  if (player.folded || player.allIn) return;
+  if (!player) return;
+  if (player.seatIndex !== room.gameState.currentPlayerIndex) {
+    io.to(playerId).emit('error-msg', 'It is not your turn.');
+    return;
+  }
+  if (player.folded || player.allIn) {
+    io.to(playerId).emit('error-msg', 'You cannot act.');
+    return;
+  }
   clearTurnTimer(room);
   if (action === 'fold') {
     player.folded = true;
     player.hasActed = true;
   } else if (action === 'check') {
-    if (player.currentBet < room.gameState.currentBet) return;
+    if (player.currentBet < room.gameState.currentBet) {
+      io.to(playerId).emit('error-msg', 'You cannot check — there is a bet to call.');
+      startTurnTimer(room);
+      return;
+    }
     player.hasActed = true;
   } else if (action === 'call') {
     const callAmount = room.gameState.currentBet - player.currentBet;
@@ -389,25 +409,50 @@ function processAction(playerId, action, amount) {
     player.totalBet += actualCall;
     if (player.chips === 0) player.allIn = true;
     player.hasActed = true;
-  } else if (action === 'raise') {
-    const totalRequired = amount;
-    if (totalRequired <= room.gameState.currentBet) return;
+  } else if (action === 'raise' || action === 'allin') {
+    let totalRequired;
+    if (action === 'allin') {
+      totalRequired = player.currentBet + player.chips;
+    } else {
+      totalRequired = parseInt(amount) || 0;
+    }
+    if (totalRequired <= player.currentBet) {
+      io.to(playerId).emit('error-msg', 'Invalid raise amount.');
+      startTurnTimer(room);
+      return;
+    }
+    if (totalRequired <= room.gameState.currentBet) {
+      const callPortion = Math.min(player.chips, room.gameState.currentBet - player.currentBet);
+      player.chips -= callPortion;
+      player.currentBet += callPortion;
+      player.totalBet += callPortion;
+      if (player.chips === 0) player.allIn = true;
+      player.hasActed = true;
+      checkRoundComplete(room);
+      return;
+    }
     const raiseDiff = totalRequired - player.currentBet;
-    if (raiseDiff > player.chips) return;
+    if (raiseDiff > player.chips) {
+      io.to(playerId).emit('error-msg', 'You don\'t have enough chips for that raise.');
+      startTurnTimer(room);
+      return;
+    }
     player.chips -= raiseDiff;
     player.currentBet = totalRequired;
     player.totalBet += raiseDiff;
     const raiseAmount = totalRequired - room.gameState.currentBet;
     if (raiseAmount >= room.gameState.minRaise) {
       room.gameState.minRaise = raiseAmount;
-      room.gameState.lastRaise = totalRequired;
+      room.gameState.lastRaise = raiseAmount; // FIX Bug 9: store the raise DIFF, not totalRequired
+      room.gameState.currentBet = totalRequired;
+      Array.from(room.players.values()).forEach(p => {
+        if (p.id !== player.id && !p.folded && !p.allIn) p.hasActed = false;
+      });
+    } else {
+      room.gameState.currentBet = totalRequired;
     }
-    room.gameState.currentBet = totalRequired;
     if (player.chips === 0) player.allIn = true;
     player.hasActed = true;
-    Array.from(room.players.values()).forEach(p => {
-      if (p.id !== player.id && !p.folded && !p.allIn) p.hasActed = false;
-    });
   }
   checkRoundComplete(room);
 }
@@ -482,14 +527,35 @@ function endHand(room) {
   const pots = calculatePots(Array.from(room.players.values()));
   const activePlayers = Array.from(room.players.values()).filter(p => !p.folded);
   const results = [];
+  let lastWinners = null; // track previous pot's winners so orphan pots fall back to them
   pots.forEach(pot => {
     if (pot.eligible.length === 0) return;
     const eligiblePlayers = activePlayers.filter(p => pot.eligible.includes(p.id));
-    if (eligiblePlayers.length === 0) return;
+    if (eligiblePlayers.length === 0) {
+      if (lastWinners && lastWinners.length > 0) {
+        const share = Math.floor(pot.amount / lastWinners.length);
+        let remainder = pot.amount - share * lastWinners.length;
+        lastWinners.forEach(w => {
+          w.player.chips += share + (remainder-- > 0 ? 1 : 0);
+          results.push({ playerId: w.player.id, amount: share, hand: 'Uncontested Side Pot' });
+        });
+      } else {
+        const contributors = Array.from(room.players.values()).filter(p => p.totalBet > 0);
+        if (contributors.length > 0) {
+          const share = Math.floor(pot.amount / contributors.length);
+          let remainder = pot.amount - share * contributors.length;
+          contributors.forEach(c => {
+            c.chips += share + (remainder-- > 0 ? 1 : 0);
+          });
+        }
+      }
+      return;
+    }
     if (eligiblePlayers.length === 1) {
       const w = eligiblePlayers[0];
       w.chips += pot.amount;
       results.push({ playerId: w.id, amount: pot.amount, hand: 'Win by Fold' });
+      lastWinners = [{ player: w, hand: { name: 'Win by Fold' } }];
       return;
     }
     const evaluated = eligiblePlayers.map(p => ({
@@ -499,11 +565,14 @@ function endHand(room) {
     evaluated.sort((a,b) => compareHands(b.hand, a.hand));
     const bestEval = evaluated[0].hand;
     const winners = evaluated.filter(e => compareHands(e.hand, bestEval) === 0);
-    const winAmount = Math.floor(pot.amount / winners.length);
+    const baseShare = Math.floor(pot.amount / winners.length);
+    let remainder = pot.amount - baseShare * winners.length;
     winners.forEach(w => {
-      w.player.chips += winAmount;
-      results.push({ playerId: w.player.id, amount: winAmount, hand: w.hand.name });
+      const amt = baseShare + (remainder-- > 0 ? 1 : 0);
+      w.player.chips += amt;
+      results.push({ playerId: w.player.id, amount: amt, hand: w.hand.name });
     });
+    lastWinners = winners;
   });
   broadcastState(room);
   room.players.forEach((_, sid) => io.to(sid).emit('hand-ended', { state: room.getPublicState(sid), results }));
@@ -524,12 +593,12 @@ function endHand(room) {
     }, 10);
   }
 }
-
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
   
   socket.on('create-room', (data) => {
-    if (!data.nickname || !data.nickname.trim()) return socket.emit('error-msg', 'Enter a nickname');
+    if (!data.nickname || !String(data.nickname).trim()) return socket.emit('error-msg', 'Enter a nickname');
+    if (String(data.nickname).trim().length > 12) return socket.emit('error-msg', 'Nickname must be 12 characters or fewer');
     const roomId = generateRoomCode();
     const settings = {
       smallBlind: Math.max(1, parseInt(data.smallBlind) || 10),
@@ -550,7 +619,8 @@ io.on('connection', (socket) => {
   });
   
   socket.on('join-room', (data) => {
-    if (!data.nickname || !data.nickname.trim()) return socket.emit('error-msg', 'Enter a nickname');
+    if (!data.nickname || !String(data.nickname).trim()) return socket.emit('error-msg', 'Enter a nickname');
+    if (String(data.nickname).trim().length > 12) return socket.emit('error-msg', 'Nickname must be 12 characters or fewer');
     const room = rooms.get(data.roomCode);
     if (!room) return socket.emit('error-msg', 'Room not found');
     if (room.password && room.password !== data.password) return socket.emit('error-msg', 'Incorrect password');
@@ -562,18 +632,27 @@ io.on('connection', (socket) => {
     }
     room.players.set(socket.id, player);
     socket.join(room.id);
+    if (room.destructionTimeout) {
+      clearTimeout(room.destructionTimeout);
+      room.destructionTimeout = null;
+    }
     socket.emit('joined-room', room.getPublicState(socket.id));
     broadcastState(room);
   });
   
   socket.on('spectate-room', (data) => {
-    if (!data.nickname || !data.nickname.trim()) return socket.emit('error-msg', 'Enter a nickname');
+    if (!data.nickname || !String(data.nickname).trim()) return socket.emit('error-msg', 'Enter a nickname');
+    if (String(data.nickname).trim().length > 12) return socket.emit('error-msg', 'Nickname must be 12 characters or fewer');
     const room = rooms.get(data.roomCode);
     if (!room) return socket.emit('error-msg', 'Room not found');
     if (room.password && room.password !== data.password) return socket.emit('error-msg', 'Incorrect password');
     room.spectators.add(socket.id);
     room.spectatorNames.set(socket.id, data.nickname || 'Spectator');
     socket.join(room.id);
+    if (room.destructionTimeout) {
+      clearTimeout(room.destructionTimeout);
+      room.destructionTimeout = null;
+    }
     socket.emit('joined-room', room.getPublicState(socket.id));
     socket.emit('set-spectator', true);
     broadcastState(room);
@@ -747,20 +826,24 @@ io.on('connection', (socket) => {
   socket.on('send-chat', (msg) => {
     const room = Array.from(rooms.values()).find(r => r.players.has(socket.id) || r.spectators.has(socket.id));
     if (!room) return;
-    // Spectators are banned from chatting — better experience for players
     if (room.spectators.has(socket.id)) return;
+    if (typeof msg !== 'string') return;
+    const trimmed = msg.trim().slice(0, 500);
+    if (!trimmed) return;
     const player = room.players.get(socket.id);
     const senderName = player ? player.name : 'Spectator';
-    const message = { sender: senderName, message: msg, timestamp: Date.now(), isSpectator: false };
+    const message = { sender: senderName, message: trimmed, timestamp: Date.now(), isSpectator: false };
     room.chat.push(message);
-    // Only players receive chat messages
     room.players.forEach((_, sid) => io.to(sid).emit('chat-message', message));
   });
   
+  const ALLOWED_EMOJIS = ['😂','🔥','👏','😮','💀'];
   socket.on('emoji', (emoji) => {
     const room = Array.from(rooms.values()).find(r => r.players.has(socket.id));
     if (!room) return;
+    if (!ALLOWED_EMOJIS.includes(emoji)) return;
     const player = room.players.get(socket.id);
+    if (!player) return;
     room.players.forEach((_, sid) => io.to(sid).emit('emoji-received', { playerId: socket.id, seatIndex: player.seatIndex, emoji }));
     room.spectators.forEach(sid => io.to(sid).emit('emoji-received', { playerId: socket.id, seatIndex: player.seatIndex, emoji }));
   });
@@ -820,7 +903,11 @@ io.on('connection', (socket) => {
       room.settings.rebuysAllowed = !room.settings.rebuysAllowed;
       broadcastState(room);
     } else if (data.type === 'change-max-players') {
-      room.settings.maxPlayers = Math.max(2, Math.min(12, parseInt(data.amount)));
+      const newMax = Math.max(2, Math.min(12, parseInt(data.amount)));
+      if (newMax < room.players.size) {
+        return socket.emit('error-msg', `Cannot reduce max players below the current player count (${room.players.size}).`);
+      }
+      room.settings.maxPlayers = newMax;
       broadcastState(room);
     } else if (data.type === 'rebuy') {
       const target = room.players.get(data.playerId);
@@ -879,8 +966,15 @@ io.on('connection', (socket) => {
       if (room.players.size === 0) {
         clearTurnTimer(room);
         if (room._nextHandTimer) clearTimeout(room._nextHandTimer);
-        rooms.delete(room.id);
-        console.log(`Room destroyed (all players left): ${room.id}`);
+        if (room.spectators.size === 0) {
+          rooms.delete(room.id);
+          console.log(`Room destroyed (all players left): ${room.id}`);
+        } else {
+          room.destructionTimeout = setTimeout(() => {
+            rooms.delete(room.id);
+            console.log(`Room destroyed (idle for ${ROOM_TIMEOUT/1000}s): ${room.id}`);
+          }, ROOM_TIMEOUT);
+        }
         return;
       }
     }

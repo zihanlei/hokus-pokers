@@ -373,7 +373,9 @@ function startTimerCountdown(endTime) {
     text.innerText = Math.ceil(timeLeft) + 's';
     if (timeLeft < 5) {
       bar.style.background = 'var(--btn-danger)';
-      if (timeLeft > 0 && Math.floor(timeLeft) !== Math.floor(timeLeft + 0.1)) {
+      const wholeSec = Math.ceil(timeLeft);
+      if (timeLeft > 0 && wholeSec !== update._lastTick) {
+        update._lastTick = wholeSec;
         playSound('tick');
       }
     } else {
@@ -796,7 +798,7 @@ function sendRaise() {
 function sendAllIn() {
   const me = currentRoom.players.find(p => p.id === mySocketId);
   if (!me) return;
-  socket.emit('action', { action: 'raise', amount: me.chips + me.currentBet });
+  socket.emit('action', { action: 'allin' });
   playSound('click');
 }
 
